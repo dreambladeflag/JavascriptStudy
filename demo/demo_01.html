@@ -1,0 +1,327 @@
+<html !DOCTYPE>
+<html>
+<head>
+	<meta charset="utf8" />
+	<meta name="viewport" content="width=device-width" />
+	<title>发射炮弹</title>
+	<style>
+		html, body {
+			margin: 0;
+			padding: 0;
+		}
+		html {
+			font-size: calc(100vw / 3.75);
+		}
+		body {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			min-height: 100vh;
+			font-size: 0.16rem;
+		}
+		#canvas {
+			width: 100vw;
+			height: 100vh;
+		}
+	</style>
+</head>
+<body>
+	<canvas id="canvas">您的浏览器不支持CANVAS</canvas>
+	
+	<script>
+	
+		window.addEventListener('load', main);
+		
+		// 物品类
+		class Item {
+			constructor(cxt, opt) {
+				this.cxt = cxt;
+				this.x = opt.x;
+				this.y = opt.y;
+				this.w = opt.w || 50;
+				this.h = opt.h || 50;
+				this.halfW = this.w / 2;
+				this.halfH = this.h / 2;
+				this.rotation = opt.rotation;
+				this.r = opt.r || 5;
+				this.vx = opt.vx || 0;
+				this.vy = opt.vy || 0;
+				this.speed = opt.speed || 5;
+				this.life = opt.life || 50;
+				this.lifeAttenuation = opt.lifeAttenuation || 0.3;
+			}
+			
+			draw(drawType = 'stroke', color = '#FF0000', lineWidth = 1) {
+				this.cxt.save();
+				this.cxt.setTransform(1, 0, 0, 1, 0, 0);
+				this.cxt.translate(this.x, this.y);
+				this.cxt.rotate(this.rotation * Math.PI / 180);
+				this.cxt.strokeStyle = color;
+				this.cxt.fillStyle = color;
+				this.cxt.lineWidth = lineWidth;
+				this.createPath();
+				switch(drawType) {
+					case 'stroke':
+						this.cxt.stroke();
+						break;
+					case 'fill':
+						this.cxt.fill();
+						break;
+					default:
+				}
+				this.cxt.restore();
+			}
+			
+			createPath() {}
+			
+			getRect() {
+				return {
+					x: this.x - this.halfW,
+					y: this.y - this.halfH,
+					w: this.w,
+					h: this.h
+				}
+			}
+		}
+		
+		// 炮台类
+		class Fort extends Item {
+			constructor(cxt, opt) {
+				super(cxt, opt);
+			}
+			
+			createPath() {
+				this.cxt.beginPath();
+				this.cxt.arc(0, 0, 7, 0, Math.PI * 2);
+				this.cxt.moveTo(0, 7);
+				this.cxt.arc(50, 0, 5, Math.PI * 0.5, Math.PI * 2.5);
+				this.cxt.moveTo(50, -5);
+				this.cxt.lineTo(0, -7);
+				this.cxt.closePath();
+			}
+		}
+		
+		// 炮弹类
+		class Shell extends Item {
+			constructor(cxt, opt) {
+				super(cxt, opt);
+				this.w = opt.w || this.r * 2;
+				this.h = opt.h || this.r * 2;
+			}
+			
+			createPath() {
+				this.cxt.beginPath();
+				this.cxt.arc(0, 0, this.r, 0, Math.PI * 2);
+				this.cxt.closePath();
+			}
+		}
+		
+		// 敌人类
+		class Enemy extends Item {
+			constructor(cxt, opt) {
+				super(cxt, opt);
+				this.lifeAttenuation = opt.lifeAttenuation || 1;
+			}
+			
+			createPath() {
+				this.cxt.beginPath();
+				// this.cxt.rect(-this.halfW, -this.halfH, this.w, this.h);
+				this.cxt.arc(0, 0, this.halfW, 0, Math.PI * 2);
+				this.cxt.closePath();
+				this.font = '20px sans-serif';
+				this.cxt.textBaseline = 'vertical';
+				this.cxt.textAlign = 'center';
+				this.cxt.fillText(this.life, 0, 0);
+			}
+		}
+		
+		function main() {
+			const CANVAS_WIDTH = window.innerWidth;
+			const CANVAS_HEIGHT = window.innerHeight;
+			const FRAME_RATE = 40;
+			const SHELL_SEND_INTERVAL = 200;
+			
+			const $canvas = document.getElementById('canvas');
+			const cxt = $canvas.getContext('2d');
+			$canvas.width = CANVAS_WIDTH;
+			$canvas.height = CANVAS_HEIGHT;
+			
+			let mouse = { x: 0, y: 0 };
+			let mouseMoving = false;
+			let mousePressedList = {}; // 鼠标按下列表
+			let lastShellSendTime = 0;
+			let shellList = []; // 所有炮弹
+			let enemyList = []; // 所有敌人
+			
+			$canvas.addEventListener('mouseenter', onMouseEnter);
+			$canvas.addEventListener('mousemove', onMouseMove);
+			$canvas.addEventListener('mouseleave', onMouseLeave);
+			$canvas.addEventListener('mousedown', onMouseDown);
+			document.addEventListener('mouseup', onMouseUp);
+			
+			// 炮台类实例
+			const fort = new Fort(cxt, {
+				x: CANVAS_WIDTH / 2,
+				y: CANVAS_HEIGHT - 50,
+				rotation: 0
+			});
+			
+			// 初始化敌人
+			initEnemy();
+			
+			// 更新函数
+			function update() {
+				updateFort(); // 更新炮台
+				
+				mousePressDetect(); // 检测鼠标按下
+				
+				updateShell(); // 更新炮弹
+				
+				updateEnemy(); // 更新敌人
+			}
+			
+			// 渲染函数
+			function render() {
+				cxt.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+				fort.draw();
+				shellList.forEach(shell => shell.draw('fill'));
+				enemyList.forEach(enemy => enemy.draw());
+			}
+			
+			// 动画循环
+			;(function gameLoop() {
+				update();
+				render();
+				setTimeout(gameLoop, 1000 / FRAME_RATE);
+			})()
+			
+			// 初始化敌人
+			function initEnemy() {
+				const enemy = new Enemy(cxt, {
+					x: getRandom(50, CANVAS_WIDTH - 50),
+					y: getRandom(50, CANVAS_HEIGHT - 100),
+					w: 100,
+					h: 100
+				});
+				enemyList.push(enemy);
+			}
+			
+			// 敌人更新函数
+			function updateEnemy() {
+				for(let len = enemyList.length - 1; len >= 0; len--) {
+					const enemy = enemyList[len];
+					// 检查自己与炮弹是否发生碰撞
+					for(let j = shellList.length - 1; j >= 0; j--) {
+						const shell = shellList[j];
+						if(interSectionCheck(enemy, shell)) {
+							// 扣除生命值
+							enemy.life -= enemy.lifeAttenuation;
+							// 敌人死亡
+							if(enemy.life <= 0) {
+								enemyList.splice(len, 1);
+								console.log('敌人死亡-----');
+							}
+							console.log('击中了-----');
+							// 击中后炮弹销毁
+							shellList.splice(j, 1);
+						}
+					}
+				}
+			}
+			
+			// 炮台更新函数
+			function updateFort() {
+				if(mouseMoving) {
+					let dx = mouse.x - fort.x;
+					let dy = mouse.y - fort.y;
+					fort.rotation = Math.atan2(dy, dx) * 180 / Math.PI;
+				}
+			}
+			
+			// 炮弹更新函数
+			function updateShell() {
+				for(let len = shellList.length - 1; len >= 0; len--) {
+					let shell = shellList[len];
+					shell.x += shell.vx;
+					shell.y += shell.vy;
+					shell.life -= shell.lifeAttenuation;
+					shell.life <= 0 && shellList.splice(len, 1);
+				}
+			}
+			
+			// 鼠标按键检测函数
+			function mousePressDetect() {
+				// 按下鼠标左键触发
+				if(mousePressedList[0] === true) {
+					let currentTime = new Date().getTime();
+					if(currentTime - lastShellSendTime >= SHELL_SEND_INTERVAL) {
+						let angle = fort.rotation * Math.PI / 180;
+						let facingX = Math.cos(angle);
+						let facingY = Math.sin(angle);
+						const shell = new Shell(cxt, {
+							x: fort.x + 50 * facingX,
+							y: fort.y + 50 * facingY,
+							rotation: fort.rotation
+						});
+						shell.vx = shell.speed * facingX;
+						shell.vy = shell.speed * facingY;
+						shell.x += shell.vx;
+						shell.y += shell.vy;
+						shellList.push(shell);
+						console.log('发射炮弹----');
+						lastShellSendTime = currentTime;
+						delete currentTime;
+					}
+				}
+			}
+			
+			// 鼠标进入监听函数
+			function onMouseEnter(e) {
+				mouseMoving = true;
+			}
+			
+			// 鼠标移动监听函数
+			function onMouseMove(e) {
+				if(!mouseMoving) return false;
+				mouse.x = e.offsetX;
+				mouse.y = e.offsetY;
+			}
+			
+			// 鼠标离开监听函数
+			function onMouseLeave(e) {
+				mouseMoving = false;
+			}
+			
+			// 鼠标按下监听函数
+			function onMouseDown(e) {
+				e.preventDefault();
+				mousePressedList[e.button] = true;;
+			}
+			
+			// 鼠标抬起监听函数
+			function onMouseUp(e) {
+				e.preventDefault();
+				mousePressedList[e.button] = false;
+			}
+			
+			// 检测两个物体是否碰撞
+			function interSectionCheck(item1, item2) {
+				let rect1 = item1.getRect();
+				let rect2 = item2.getRect();
+				return !(rect1.x + rect1.w < rect2.x ||
+					rect2.x + rect2.w < rect1.x ||
+					rect1.y + rect1.h < rect2.y ||
+					rect2.y + rect2.h < rect1.y);
+			}
+			
+			// 获取范围区间内的随机数
+			function getRandom(min, max) {
+				return (Math.random() * (max - min) + min) >> 0;
+			}
+			
+			// 屏蔽鼠标右键
+			document.oncontextmenu = () => false;
+		}
+	</script>
+</body>
+</html>
