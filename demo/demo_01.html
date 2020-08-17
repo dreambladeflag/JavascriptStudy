@@ -72,7 +72,9 @@
 				this.cxt.restore();
 			}
 			
-			createPath() {}
+			createPath() {
+				throw 'createPath() not implemented';
+			}
 			
 			getRect() {
 				return {
@@ -135,10 +137,43 @@
 			}
 		}
 		
+		// 帧率计数器
+		class FrameCounter {
+			constructor (frameRate = 60) {
+				this.lastTime = new Date().getTime();
+				this.frameRate = frameRate;
+				this.frameRateReal = 0;
+				this.lastFrameTime = this.lastTime;
+				this.frameRateTime = this.frameRate / 1000;
+				this.frameRateInterval = 1000 / this.frameRate;
+			}
+			
+			calculateFrameRate () {
+				let currentTime = new Date().getTime();
+				let timeDiff = currentTime - this.lastTime;
+				
+				let flag = false;
+				
+				
+				if (timeDiff > this.frameRateInterval) {
+					this.lastTime = currentTime - this.lastTime;
+					this.frameRateReal = 1000 / timeDiff;
+					flag = true;
+				}
+				
+				if (currentTime - this.lastFrameTime > 1000) {
+					this.lastFrameTime = currentTime;
+					this.frameRate = this.frameRateReal;
+				}
+				
+				return flag;
+			}
+		}
+		
 		function main() {
 			const CANVAS_WIDTH = window.innerWidth;
 			const CANVAS_HEIGHT = window.innerHeight;
-			const FRAME_RATE = 40;
+			const FRAME_RATE = 30;
 			const SHELL_SEND_INTERVAL = 200;
 			
 			const $canvas = document.getElementById('canvas');
@@ -150,6 +185,7 @@
 			let mouseMoving = false;
 			let mousePressedList = {}; // 鼠标按下列表
 			let lastShellSendTime = 0;
+			let lastFrameTime = new Date().getTime();
 			let shellList = []; // 所有炮弹
 			let enemyList = []; // 所有敌人
 			
@@ -158,6 +194,10 @@
 			$canvas.addEventListener('mouseleave', onMouseLeave);
 			$canvas.addEventListener('mousedown', onMouseDown);
 			document.addEventListener('mouseup', onMouseUp);
+			
+			
+			// 帧率计数器实例
+			const frameCounter = new FrameCounter(FRAME_RATE);
 			
 			// 炮台类实例
 			const fort = new Fort(cxt, {
@@ -171,6 +211,7 @@
 			
 			// 更新函数
 			function update() {
+				
 				updateFort(); // 更新炮台
 				
 				mousePressDetect(); // 检测鼠标按下
@@ -186,14 +227,23 @@
 				fort.draw();
 				shellList.forEach(shell => shell.draw('fill'));
 				enemyList.forEach(enemy => enemy.draw());
+				cxt.fillText(frameCounter.frameRate.toFixed(2) + ' fps', 10, 20);
 			}
 			
 			// 动画循环
-			;(function gameLoop() {
-				update();
-				render();
-				setTimeout(gameLoop, 1000 / FRAME_RATE);
-			})()
+			;(function gameLoop(timestamp) {
+				
+				// 计算帧速率
+				if (frameCounter.calculateFrameRate()) {
+					update();
+					render();
+				}
+				
+				(window.webkitRequestAnimationFrame ||
+					window.mozRequestAnimationFrame ||
+					window.msRequestAnimationFrame ||
+					window.requestAnimationFrame)(gameLoop);
+			})();
 			
 			// 初始化敌人
 			function initEnemy() {
@@ -242,8 +292,8 @@
 			function updateShell() {
 				for(let len = shellList.length - 1; len >= 0; len--) {
 					let shell = shellList[len];
-					shell.x += shell.vx;
-					shell.y += shell.vy;
+					shell.x += shell.vx * 20 * frameCounter.frameRateTime;
+					shell.y += shell.vy * 20 * frameCounter.frameRateTime;
 					shell.life -= shell.lifeAttenuation;
 					shell.life <= 0 && shellList.splice(len, 1);
 				}

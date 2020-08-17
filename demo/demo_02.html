@@ -1,0 +1,169 @@
+<html !DOCTYPE>
+<html>
+<head>
+	<meta charset="utf8" />
+	<meta name="viewport" content="width=device-width" />
+	<title>向量</title>
+	<style>
+		html, body {
+			margin: 0;
+			padding: 0;
+		}
+		html {
+			font-size: calc(100vw / 3.75);
+		}
+		body {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			min-height: 100vh;
+			font-size: 0.16rem;
+		}
+		#canvas {
+			width: 65%;
+			height: 60%;
+			border: 2px solid rgba(245, 208, 133, .85);
+		}
+	</style>
+</head>
+<body>
+	<canvas id="canvas">您的浏览器不支持CANVAS</canvas>
+	
+	<script type="module">
+		import { Point, Polygon } from '../tools/polygonCollision.js';
+		
+		const CANVAS_WIDTH = window.innerWidth * 0.65;
+		const CANVAS_HEIGHT = window.innerHeight * 0.6;
+		const $canvas = document.getElementById('canvas');
+		const cxt = $canvas.getContext('2d');
+		
+		let dragged = false;
+		let draggedTarget = null;
+		let mouse = new Point();
+		let lastMouse = new Point();
+		let polygons = [];
+		
+		$canvas.width = CANVAS_WIDTH;
+		$canvas.height = CANVAS_HEIGHT;
+		
+		const board = [
+			new Polygon(cxt, [
+				new Point(50, 50),
+				new Point(50, 75),
+				new Point(75, 100)
+			]),
+			new Polygon(cxt, [
+				new Point(50, 50),
+				new Point(25, 100),
+				new Point(50, 75),
+			])
+		];
+		
+		const rect = new Polygon(cxt, [
+			new Point(200, 100),
+			new Point(300, 100),
+			new Point(300, 200),
+			new Point(200, 200)
+		]);
+		
+		const rhombus = new Polygon(cxt, [
+			new Point(100, 200),
+			new Point(150, 250),
+			new Point(100, 300),
+			new Point(50, 250)
+		]);
+		
+		polygons.push(board);
+		polygons.push(rect);
+		polygons.push(rhombus);
+		
+		board.forEach(polygon => polygon.fill());
+		rect.fill();
+		rhombus.fill();
+		
+		$canvas.onmousedown = e => {
+			let location = windowToCanvas($canvas, new Point(e.clientX, e.clientY));
+			mouse.x = location.x;
+			mouse.y = location.y;
+			lastMouse.x = mouse.x;
+			lastMouse.y = mouse.y; 
+			
+			for(let i = 0, len = polygons.length; i < len; i++) {
+				let polygon = polygons[i];
+				if (Array.isArray(polygon)) {
+					if (polygon.some(p => p.isPointInPath(mouse.x, mouse.y))) {
+						draggedTarget = polygon;
+						dragged = true;
+						break;
+					}
+				} else {
+					if (polygon.isPointInPath(mouse.x, mouse.y)) {
+						draggedTarget = polygon;
+						dragged = true;
+						break;
+					}
+				}
+			}
+		};
+		
+		$canvas.onmousemove = e => {
+			if (dragged === true) {
+				let location = windowToCanvas($canvas, new Point(e.clientX, e.clientY));
+				mouse.x = location.x;
+				mouse.y = location.y;
+				
+				update();
+				
+				lastMouse.x = mouse.x;
+				lastMouse.y = mouse.y;
+			}
+		};
+		
+		document.onmouseup = e => {
+			dragged = false;
+			draggedTarget = null;
+		};
+		
+		function update() {
+			cxt.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+			
+			let dx = mouse.x - lastMouse.x;
+			let dy = mouse.y - lastMouse.y;
+		
+			if (Array.isArray(draggedTarget)) {
+				draggedTarget.forEach(polygon => polygon.move(dx, dy));
+			} else {
+				draggedTarget.move(dx, dy);
+			}
+			
+			polygons.forEach(polygon => {
+				if (Array.isArray(draggedTarget)) {
+					if (!Array.isArray(polygon) && draggedTarget.some(p => p.collidesWith(polygon))) {
+						console.log('!!!');
+					}
+				} else if (Array.isArray(polygon)) {
+					if (polygon.some(p => draggedTarget.collidesWith(p))) {
+						console.log('!!!');
+					}
+				} else if (draggedTarget !== polygon) {
+					if (draggedTarget.collidesWith(polygon)) {
+						console.log('!!!');
+					}
+				}
+			});
+			
+			board.forEach(polygon => polygon.fill());
+			rect.fill();
+			rhombus.fill();
+		}
+		
+		function windowToCanvas(canvas, point) {
+			const bbox = canvas.getBoundingClientRect();
+			let x = point.x - bbox.left * ( canvas.width / bbox.width );
+			let y = point.y - bbox.top * ( canvas.height / bbox.height );
+			
+			return new Point(x, y);
+		}
+	</script>
+</body>
+</html>
