@@ -63,6 +63,7 @@ class Vector {
 		return new Vector(x, y);
 	}
 	
+	// 获取单位向量的法向量（垂直）
 	normal() {
 		let v = this.perpendicular();
 		
@@ -79,6 +80,7 @@ class Projection {
 		this.max = max;
 	}
 	
+	// 检测两条投影是否重叠
 	overlaps(projection) {
 		return this.max > projection.min && projection.max > this.min
 	}
@@ -179,6 +181,50 @@ function separationOnAxes(polygon1, polygon2) {
 	return false;
 }
 
+
+/**
+*获得多边形距离圆心最近的顶点
+*@param {Polygon} polygon 多边形
+*@param {Circle} circle 圆形
+*@return {Point} closestPoint 距离圆心最近的顶点
+*/
+function getPolygonClosestOnCircle(polygon, circle) {
+	let minDist = Infinity;
+	let closestPoint = {};
+	let points = polygon.points;
+	
+	for(let i = points.length - 1; i >= 0; i--) {
+		let p = points[i];
+		let pDist = Math.abs(Math.sqrt(Math.pow(circle.x - p.x) + Math.pow(circle.y - p.y)));
+		
+		if (minDist > pDist) {
+			minDist = pDist;
+			closestPoint.x = p.x;
+			closestPoint.y = p.y;
+		}
+	}
+	
+	return closestPoint;
+}
+
+/**
+*检测多边形是否与圆形发生碰撞
+*@param {Polygon} polygon 多边形
+*@param {Circle} circle 圆形
+*@return {Boolean} 是否发生碰撞
+*/
+function polygonCollidesWithCircle(polygon, circle) {
+	let closestPoint = getPolygonClosestOnCircle(polygon, circle);
+	let v1 = new Vector(closestPoint.x, closestPoint.y);
+	let v2 = new Vector(circle.x, circle.y);
+	let axis = v1.edge(v2).normal()；
+	let project1 = project(polygon, axis);
+	let project2 = project(circle, axis);
+	
+	return !project1.overlaps(project2);
+	
+}
+
 function getAxes(polygon) {
 	let axes = [];
 	let v1 = new Vector();
@@ -199,16 +245,27 @@ function getAxes(polygon) {
 	return axes;
 }
 
-function project(polygon, axis) {
+function project(shape, axis) {
 	let scalars = [];
 	let v = new Vector();
 	
-	polygon.points.map(p => {
-		v.x = p.x;
-		v.y = p.y;
+	if (shape.points) {
+		shape.points.map(p => {
+			v.x = p.x;
+			v.y = p.y;
+			
+			scalars.push(v.dotProduct(axis));
+		});
+	} else {
+		v.x = shape.x;
+		v.y = shape.y;
 		
-		scalars.push(v.dotProduct(axis));
-	});
+		let dp = v.dotProduct(axis);
+		
+		scalars.push(dp)
+		scalars.push(dp + shape.r);
+		scalars.push(dp - shape.r);
+	}
 	
 	scalars.sort((a, b) => (a - b));
 	
