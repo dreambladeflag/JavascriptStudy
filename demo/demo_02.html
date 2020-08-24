@@ -30,7 +30,7 @@
 	<canvas id="canvas">您的浏览器不支持CANVAS</canvas>
 	
 	<script type="module">
-		import { Point, Polygon } from '../tools/polygonCollision.js';
+		import { Point, Polygon, Circle } from '../tools/polygonCollision.js';
 		
 		const CANVAS_WIDTH = window.innerWidth * 0.65;
 		const CANVAS_HEIGHT = window.innerHeight * 0.6;
@@ -41,7 +41,7 @@
 		let draggedTarget = null;
 		let mouse = new Point();
 		let lastMouse = new Point();
-		let polygons = [];
+		let shapes = [];
 		
 		$canvas.width = CANVAS_WIDTH;
 		$canvas.height = CANVAS_HEIGHT;
@@ -73,13 +73,17 @@
 			new Point(50, 250)
 		]);
 		
-		polygons.push(board);
-		polygons.push(rect);
-		polygons.push(rhombus);
+		const circle = new Circle(cxt, 200, 300, 50);
 		
-		board.forEach(polygon => polygon.fill());
-		rect.fill();
-		rhombus.fill();
+		const circle2 = new Circle(cxt, 250, 300, 50);
+		
+		shapes.push(board);
+		shapes.push(rect);
+		shapes.push(rhombus);
+		shapes.push(circle);
+		shapes.push(circle2);
+		
+		render();
 		
 		$canvas.onmousedown = e => {
 			let location = windowToCanvas($canvas, new Point(e.clientX, e.clientY));
@@ -88,17 +92,17 @@
 			lastMouse.x = mouse.x;
 			lastMouse.y = mouse.y; 
 			
-			for(let i = 0, len = polygons.length; i < len; i++) {
-				let polygon = polygons[i];
-				if (Array.isArray(polygon)) {
-					if (polygon.some(p => p.isPointInPath(mouse.x, mouse.y))) {
-						draggedTarget = polygon;
+			for(let i = 0, len = shapes.length; i < len; i++) {
+				let shape = shapes[i];
+				if (Array.isArray(shape)) {
+					if (shape.some(p => p.isPointInPath(mouse.x, mouse.y))) {
+						draggedTarget = shape;
 						dragged = true;
 						break;
 					}
 				} else {
-					if (polygon.isPointInPath(mouse.x, mouse.y)) {
-						draggedTarget = polygon;
+					if (shape.isPointInPath(mouse.x, mouse.y)) {
+						draggedTarget = shape;
 						dragged = true;
 						break;
 					}
@@ -131,30 +135,38 @@
 			let dy = mouse.y - lastMouse.y;
 		
 			if (Array.isArray(draggedTarget)) {
-				draggedTarget.forEach(polygon => polygon.move(dx, dy));
+				draggedTarget.forEach(shape => shape.move(dx, dy));
 			} else {
 				draggedTarget.move(dx, dy);
 			}
 			
-			polygons.forEach(polygon => {
+			shapes.forEach(shape => {
 				if (Array.isArray(draggedTarget)) {
-					if (!Array.isArray(polygon) && draggedTarget.some(p => p.collidesWith(polygon))) {
+					if (!Array.isArray(shape) && draggedTarget.some(p => p.collidesWith(shape))) {
 						console.log('!!!');
 					}
-				} else if (Array.isArray(polygon)) {
-					if (polygon.some(p => draggedTarget.collidesWith(p))) {
+				} else if (Array.isArray(shape)) {
+					if (shape.some(p => draggedTarget.collidesWith(p))) {
 						console.log('!!!');
 					}
-				} else if (draggedTarget !== polygon) {
-					if (draggedTarget.collidesWith(polygon)) {
+				} else if (draggedTarget !== shape) {
+					if (draggedTarget.collidesWith(shape)) {
 						console.log('!!!');
 					}
 				}
 			});
 			
-			board.forEach(polygon => polygon.fill());
-			rect.fill();
-			rhombus.fill();
+			render();
+		}
+		
+		function render() {
+			shapes.forEach(shape => {
+				if (Array.isArray(shape)) {
+					shape.forEach(polygon => polygon.fill())
+				} else {
+					shape.fill();
+				}
+			});
 		}
 		
 		function windowToCanvas(canvas, point) {

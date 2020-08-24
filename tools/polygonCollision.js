@@ -84,6 +84,20 @@ class Projection {
 	overlaps(projection) {
 		return this.max > projection.min && projection.max > this.min
 	}
+	
+	// 返回两条投影重叠部分的长度
+	overlap(projection) {
+		let overlap = 0;
+		
+		if (this.overlaps(projection)) {
+			let len1 = this.max - this.min;
+			let len2 = projection.max - projection.min;
+			
+			overlap = Math.abs(len1 - len2);
+		}
+		
+		return overlap;
+	}
 }
 
 /**
@@ -149,8 +163,12 @@ class Polygon {
 		}
 	}
 	
-	collidesWith(polygon) {
-		return polygonCollidesWithPolygon(this, polygon);
+	collidesWith(shape) {
+		if (shape.points) {
+			return polygonCollidesWithPolygon(this, shape);
+		} else {
+			return polygonCollidesWithCircle(this, shape);
+		}
 	}
 	
 	getAxes() {
@@ -162,23 +180,107 @@ class Polygon {
 	}
 }
 
-function polygonCollidesWithPolygon(polygon1, polygon2) {
-	if (!separationOnAxes(polygon1, polygon2)) return true;
-	return false;
+/**
+*圆形类
+*/
+class Circle {
+	constructor(cxt, cx, cy, r, opt = {}) {
+		this.cxt = cxt;
+		this.x = cx;
+		this.y = cy;
+		this.r = r;
+		this.init(opt);
+	}
+	
+	init(opt) {
+		this.strokeStyle = opt.strokeStyle || 'rgba(50, 143, 66, .85)';
+		this.fillStyle = opt.fillStyle || 'rgba(75, 143, 143, .75)';
+	}
+	
+	stroke() {
+		this.cxt.save();
+		this.cxt.strokeStyle = this.strokeStyle;
+		this.createPath();
+		this.cxt.stroke();
+		this.cxt.restore();
+	}
+	
+	fill() {
+		this.cxt.save();
+		this.cxt.fillStyle = this.fillStyle;
+		this.createPath();
+		this.cxt.fill();
+		this.cxt.restore();
+	}
+	
+	createPath() {
+		this.cxt.beginPath();
+		this.cxt.arc(this.x, this.y, this.r, 0, Math.PI * 2, false);
+		this.cxt.closePath();
+	}
+	
+	isPointInPath(x, y) {
+		this.createPath();
+		
+		return this.cxt.isPointInPath(x, y);
+	}
+	
+	move(dx, dy) {
+		this.x += dx;
+		this.y += dy;
+	}
+	
+	collidesWith(shape) {
+		if (shape.points) {
+			return polygonCollidesWithCircle(shape, this);
+		} else {
+			let dist = Math.sqrt(Math.pow(this.x - shape.x, 2) + Math.pow(this.y - shape.y, 2));
+			let rDist = this.r + shape.r;
+			
+			return dist < rDist;
+		}
+		
+	}
+	
+	getAxes() {
+		return undefined;
+	}
+	
+	project(axis) {
+		return project(this, axis);
+	}
 }
 
-function separationOnAxes(polygon1, polygon2) {
-	let axes = polygon1.getAxes().concat(polygon2.getAxes());
+/**
+*检测两个图形在所有的检测轴上是否存在间隙
+*@param {Array} axes 所有的检测轴
+*@param {Object} shape1 图形1
+*@param {Object} shape2 图形2
+*@return {Boolean} 检测结果
+*/
+function separationOnAxes(axes, shape1, shape2) {
 	
 	for(let i = 0, len = axes.length; i < len; i++) {
 		let axis = axes[i];
-		let project1 = polygon1.project(axis);
-		let project2 = polygon2.project(axis);
+		let project1 = shape1.project(axis);
+		let project2 = shape2.project(axis);
 		
 		if (!project1.overlaps(project2)) return true;
 	}
 	
 	return false;
+}
+
+/**
+*检测两个多边形是否发生碰撞
+*@param {Polygon} polygon1 多边形1
+*@param {Polygon} polygon2 多边形2
+*@return {Boolean} 检测结果
+*/
+function polygonCollidesWithPolygon(polygon1, polygon2) {
+	let axes = polygon1.getAxes().concat(polygon2.getAxes());
+	
+	return !separationOnAxes(axes, polygon1, polygon2)
 }
 
 
@@ -195,7 +297,7 @@ function getPolygonClosestOnCircle(polygon, circle) {
 	
 	for(let i = points.length - 1; i >= 0; i--) {
 		let p = points[i];
-		let pDist = Math.abs(Math.sqrt(Math.pow(circle.x - p.x) + Math.pow(circle.y - p.y)));
+		let pDist = Math.abs(Math.sqrt(Math.pow(circle.x - p.x, 2) + Math.pow(circle.y - p.y, 2)));
 		
 		if (minDist > pDist) {
 			minDist = pDist;
@@ -214,17 +316,21 @@ function getPolygonClosestOnCircle(polygon, circle) {
 *@return {Boolean} 是否发生碰撞
 */
 function polygonCollidesWithCircle(polygon, circle) {
+	let axes = polygon.getAxes();
 	let closestPoint = getPolygonClosestOnCircle(polygon, circle);
 	let v1 = new Vector(closestPoint.x, closestPoint.y);
 	let v2 = new Vector(circle.x, circle.y);
-	let axis = v1.edge(v2).normal()；
-	let project1 = project(polygon, axis);
-	let project2 = project(circle, axis);
+	axes.push(v1.edge(v2).normal());
 	
-	return !project1.overlaps(project2);
+	return !separationOnAxes(axes, polygon, circle);
 	
 }
 
+/**
+*获取多边形的所有检测轴
+*@param {Polygon} polygon 多边形
+*@return {Array} axes 存储所有检测轴的数组
+*/
 function getAxes(polygon) {
 	let axes = [];
 	let v1 = new Vector();
@@ -245,6 +351,12 @@ function getAxes(polygon) {
 	return axes;
 }
 
+/**
+*获取图形在检测轴上的投影
+*@param {Object} shape 图形1
+*@param {Vector} axis 检测轴
+*@return {Projection} 投影对象
+*/
 function project(shape, axis) {
 	let scalars = [];
 	let v = new Vector();
@@ -275,4 +387,4 @@ function project(shape, axis) {
 	return new Projection(min, max);
 }
 
-export { Point, Polygon }
+export { Point, Polygon, Circle }
