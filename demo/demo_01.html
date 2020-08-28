@@ -139,13 +139,13 @@
 		
 		// 帧率计数器
 		class FrameCounter {
-			constructor (frameRate = 60) {
+			constructor (fps = 60) {
 				this.lastTime = new Date().getTime();
-				this.frameRate = frameRate;
-				this.frameRateReal = 0;
+				this.fps = fps;
+				this.frameCount = 0;
 				this.lastFrameTime = this.lastTime;
-				this.frameRateTime = this.frameRate / 1000;
-				this.frameRateInterval = 1000 / this.frameRate;
+				this.intervalTime = 1000 / this.fps;
+				this.elapseTime = this.intervalTime
 			}
 			
 			calculateFrameRate () {
@@ -156,14 +156,14 @@
 				
 				
 				if (timeDiff > this.frameRateInterval) {
-					this.lastTime = currentTime - this.lastTime;
-					this.frameRateReal = 1000 / timeDiff;
+					this.lastTime = currentTime - (timeDiff % this.intervalTime);
+					this.frameCount++;
 					flag = true;
 				}
 				
 				if (currentTime - this.lastFrameTime > 1000) {
 					this.lastFrameTime = currentTime;
-					this.frameRate = this.frameRateReal;
+					this.fps = this.frameRateReal;
 				}
 				
 				return flag;
