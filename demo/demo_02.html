@@ -37,11 +37,19 @@
 		const $canvas = document.getElementById('canvas');
 		const cxt = $canvas.getContext('2d');
 		
+		let animateStarted = false;
 		let dragged = false;
 		let draggedTarget = null;
 		let mouse = new Point();
 		let lastMouse = new Point();
 		let shapes = [];
+		let lastTime = new Date().getTime();
+		let animationQueue = [
+			// {
+			//	shape: shape,
+			//	velocity: velocity
+			// }
+		];
 		
 		$canvas.width = CANVAS_WIDTH;
 		$canvas.height = CANVAS_HEIGHT;
@@ -73,39 +81,56 @@
 			new Point(50, 250)
 		]);
 		
-		const circle = new Circle(cxt, 200, 300, 50);
+		const circle = new Circle(cxt, 200, 300, 10);
 		
 		const circle2 = new Circle(cxt, 250, 300, 50);
 		
-		// shapes.push(board);
+		shapes.push(board);
 		shapes.push(rect);
 		// shapes.push(rhombus);
 		shapes.push(circle);
-		// shapes.push(circle2);
+		shapes.push(circle2);
 		
 		render();
 		
 		$canvas.onmousedown = e => {
 			let location = windowToCanvas($canvas, new Point(e.clientX, e.clientY));
+			let findedShape = null;
 			mouse.x = location.x;
 			mouse.y = location.y;
 			lastMouse.x = mouse.x;
-			lastMouse.y = mouse.y; 
+			lastMouse.y = mouse.y;
+			lastTime = new Date().getTime();
 			
 			for(let i = 0, len = shapes.length; i < len; i++) {
 				let shape = shapes[i];
 				if (Array.isArray(shape)) {
 					if (shape.some(p => p.isPointInPath(mouse.x, mouse.y))) {
-						draggedTarget = shape;
+						findedShape = shape;
 						dragged = true;
 						break;
 					}
 				} else {
 					if (shape.isPointInPath(mouse.x, mouse.y)) {
-						draggedTarget = shape;
+						findedShape = shape;
 						dragged = true;
 						break;
 					}
+				}
+			}
+			
+			if (findedShape !== null) {
+				let index = animationQueue.findIndex(el => el.shape === findedShape);
+				if (index !== -1) {
+					animationQueue[index].velocity.x = 0;
+					animationQueue[index].velocity.y = 0;
+					draggedTarget = index;
+				} else {
+					let length = animationQueue.push({
+						shape: findedShape,
+						velocity: new Point(0, 0)
+					});
+					draggedTarget = length - 1;
 				}
 			}
 		};
@@ -116,6 +141,8 @@
 				mouse.x = location.x;
 				mouse.y = location.y;
 				
+				animationQueue[draggedTarget].velocity.x = mouse.x - lastMouse.x;
+				animationQueue[draggedTarget].velocity.y = mouse.y - lastMouse.y;
 				update();
 				
 				lastMouse.x = mouse.x;
@@ -124,72 +151,104 @@
 		};
 		
 		document.onmouseup = e => {
+			let currentTime = new Date().getTime();
 			dragged = false;
-			draggedTarget = null;
+			if (!animateStarted && currentTime - lastTime < 600) {
+				animate();
+				animateStarted = true;
+			}
+			// draggedTarget = -1;
 		};
 		
-		function update() {
-			cxt.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-			
-			let dx = mouse.x - lastMouse.x;
-			let dy = mouse.y - lastMouse.y;
+		function animate() {
+			window.requestAnimationFrame(animate);
+			update();
+		}
 		
-			if (Array.isArray(draggedTarget)) {
-				draggedTarget.forEach(shape => shape.move(dx, dy));
-			} else {
-				draggedTarget.move(dx, dy);
-			}
-			
-			shapes.forEach(shape => {
-				let mtv;
-				let deltaX;
-				let deltaY;
+		function update() {
+		
+			animationQueue.forEach(el => {
+				if (Array.isArray(el.shape)) {
+					el.shape.forEach(shape => shape.move(el.velocity.x, el.velocity.y));
+				} else {
+					el.shape.move(el.velocity.x, el.velocity.y);
+				}
 				
-				if (draggedTarget !== shape) {
-					if (Array.isArray(draggedTarget)) {
-						if (!Array.isArray(shape) && draggedTarget.some(p => {
-								mtv = p.collidesWith(shape);
-								return typeof mtv.axis !== 'undefined';
-							})) {
-							console.log(mtv);
-						}
-					} else if (Array.isArray(shape)) {
-						if (shape.some(p => {
-								mtv = draggedTarget.collidesWith(p);
-								return typeof mtv.axis !== 'undefined';
-							})) {
-							console.log(mtv);
-						}
-					} else {
-						mtv = draggedTarget.collidesWith(shape);
-						if (typeof mtv.axis !== 'undefined') {
-							// console.log('最小平移向量', mtv.axis, '最小平移向量法向量', mtv.axis.perpendicular());
-							separate(draggedTarget, shape, mtv);
-							bounce(draggedTarget, shape, mtv, { x: dx, y: dy });
+				shapes.forEach(shape => {
+					let mtv;
+					let deltaX;
+					let deltaY;
+					
+					if (el.shape !== shape) {
+						if (Array.isArray(el.shape)) {
+							if (!Array.isArray(shape)) {
+								el.shape.forEach(p => {
+									mtv = p.collidesWith(shape);
+									if (typeof mtv.axis !== 'undefined') {
+										separate(p, shape, mtv);
+									};
+								})
+							}
+						} else if (Array.isArray(shape)) {
+							shape.some(p => {
+								mtv = el.shape.collidesWith(p);
+								if (typeof mtv.axis !== 'undefined') {
+									separate(p, shape, mtv);
+								}
+							})
+						} else {
+							mtv = el.shape.collidesWith(shape);
+							if (typeof mtv.axis !== 'undefined') {
+								// console.log('最小平移向量', mtv.axis, '最小平移向量法向量', mtv.axis.perpendicular());
+								separate(el.shape, shape, mtv);
+								el.velocity = bounce(el.shape, shape, mtv, el.velocity);
+							}
 						}
 					}
-				}
-			});
-			
-			detectCollisionsWithBounding(draggedTarget, 0, CANVAS_WIDTH, 0, CANVAS_HEIGHT, collidesWith => {				
-				let deltaX = 0;
-				let deltaY = 0;
+				});
 				
-				if (collidesWith.left || collidesWith.right) {
-					deltaX = dx * -1;
-				}
-				
-				if (collidesWith.top || collidesWith.bottom) {
-					deltaY = dy * -1;
-					
-				}
-				draggedTarget.move(deltaX, deltaY);
+				Array.isArray(el.shape)
+					? el.shape.forEach(p => {
+						detectCollisionsWithBounding(p, 0, CANVAS_WIDTH, 0, CANVAS_HEIGHT, collidesWith => {				
+							let deltaX = 0;
+							let deltaY = 0;
+							
+							if (collidesWith.left || collidesWith.right) {
+								el.velocity.x *= -1;
+								deltaX = el.velocity.x;
+							}
+							
+							if (collidesWith.top || collidesWith.bottom) {
+								el.velocity.y *= -1;
+								deltaY = el.velocity.y;
+								
+							}
+							p.move(deltaX, deltaY);
+						})
+					})
+					: detectCollisionsWithBounding(el.shape, 0, CANVAS_WIDTH, 0, CANVAS_HEIGHT, collidesWith => {				
+						let deltaX = 0;
+						let deltaY = 0;
+						
+						if (collidesWith.left || collidesWith.right) {
+							el.velocity.x *= -1;
+							deltaX = el.velocity.x;
+						}
+						
+						if (collidesWith.top || collidesWith.bottom) {
+							el.velocity.y *= -1;
+							deltaY = el.velocity.y;
+							
+						}
+						el.shape.move(deltaX, deltaY);
+					});
 			});
 			
 			render();
 		}
 		
 		function render() {
+			cxt.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 			shapes.forEach(shape => {
 				if (Array.isArray(shape)) {
 					shape.forEach(polygon => polygon.fill())
