@@ -58,7 +58,7 @@ class TimerStore {
 	*@return {TimerStore}
 	*/
 	removeTimer (timerId) {
-		const timer = this._store[timerId];
+		const timer = this._store.get(timerId);
 		
 		if (this._isActive) {
 			timer.stop();

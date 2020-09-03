@@ -32,7 +32,7 @@ class Timer {
 	*@return {Boolean} 定时器开启状态（成功或失败）
 	*/
 	start () {
-		let sussess = false; // 定时器启用状态
+		let success = false; // 定时器启用状态
 		this.lastTime = new Date().getTime(); // 记录本次启用定时器的时间戳（毫秒数）
 		
 		this.clear(); // 清除定时器，防止多个定时器同时运行
