@@ -85,9 +85,9 @@
 		
 		const circle2 = new Circle(cxt, 250, 300, 50);
 		
-		shapes.push(board);
+		// shapes.push(board);
 		shapes.push(rect);
-		// shapes.push(rhombus);
+		shapes.push(rhombus);
 		shapes.push(circle);
 		shapes.push(circle2);
 		
@@ -156,6 +156,9 @@
 			if (!animateStarted && currentTime - lastTime < 600) {
 				animate();
 				animateStarted = true;
+			} else {
+				animationQueue[draggedTarget].velocity.x = 0;
+				animationQueue[draggedTarget].velocity.y = 0;
 			}
 			// draggedTarget = -1;
 		};
