@@ -34,7 +34,7 @@ class TimerStore {
 	*@return {Boolean}
 	*/
 	getState () {
-		return this._isActive();
+		return this._isActive;
 	}
 	
 	/**
