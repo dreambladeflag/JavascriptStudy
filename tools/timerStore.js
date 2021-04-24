@@ -39,7 +39,7 @@ class TimerStore {
 	
 	/**
 	*添加一个定时器
-	*@param {Number} 定时器Id
+	*@param {Timer} timer 定时器对象
 	*@return {Number}
 	*/
 	addTimer (timer) {
@@ -54,7 +54,7 @@ class TimerStore {
 	
 	/**
 	*移除一个定时器
-	*@param {Number} 定时器Id
+	*@param {Number} timerId 定时器Id
 	*@return {TimerStore}
 	*/
 	removeTimer (timerId) {
@@ -71,7 +71,7 @@ class TimerStore {
 	
 	/**
 	*启用一个定时器
-	*@param {Number} 定时器Id
+	*@param {Number} timerId 定时器Id
 	*@return {TimerStore}
 	*/
 	startTimer (timerId) {
@@ -84,7 +84,7 @@ class TimerStore {
 	
 	/**
 	*暂停一个定时器
-	*@param {Number} 定时器Id
+	*@param {Number} timerId 定时器Id
 	*@return {TimerStore}
 	*/
 	suspendTimer (timerId) {
@@ -95,7 +95,7 @@ class TimerStore {
 	
 	/**
 	*停止一个定时器
-	*@param {Number} 定时器Id
+	*@param {Number} timerId 定时器Id
 	*@return {TimerStore}
 	*/
 	stopTimer (timerId) {
